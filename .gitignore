@@ -1,1 +1,29 @@
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment variables
+.env
+
+# Data files
+/data/
 *.xlsx
+
+# VS Code settings
+.vscode/
+
+# Jupyter notebooks
+*.ipynb
+
+# Log files
+*.log
+
+# Virtual environments
+venv/
+env/
+
+# OS files
+.DS_Store
+Thumbs.db
