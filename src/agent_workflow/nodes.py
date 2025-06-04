@@ -1,11 +1,14 @@
 import sys
 import logging
 from datetime import datetime
-from helpers.document_retriever import *
 from llm_factory.gemini import GoogleGen
-from relevance_check.relevance_check import HybridRelevanceChecker
-from answer_generator.answer_generator import AnswerGenerator
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from helpers.relevance_checker import *
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from sentence_transformers import SentenceTransformer
+from langchain_chroma import Chroma
+from langchain.schema import Document
+from helpers.document_retriever import *
+
 import time
 import os
 from pathlib import Path
@@ -33,159 +36,120 @@ class Nodes:
             self.llm_obj = GoogleGen()
             self.tools = []
             self.llm_obj.llm_with_tools = self.llm_obj.llm.bind_tools(self.tools)
-            self.max_retries = 3
-            self.privacy_keywords = ['personal', 'private', 'confidential', 'sensitive']
-            self.relevance_checker = HybridRelevanceChecker()
-            self.answer_generator = AnswerGenerator()
             logger.info("Nodes initialized successfully")
         except Exception as e:
             logger.error(f"Error initializing nodes: {str(e)}")
             raise
 
-    def _sanitize_input(self, text: str) -> str:
-        """Remove or mask potentially sensitive information."""
-        try:
-            for keyword in self.privacy_keywords:
-                if keyword in text.lower():
-                    text = text.replace(keyword, '[REDACTED]')
-            return text
-        except Exception as e:
-            logger.error(f"Error sanitizing input: {str(e)}")
-            return text
-
     def initiate_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Initialize the conversation state with metadata."""
+        """Initialize the conversation state"""
+        logger.info(f"Initializing conversation state")
+        return state
+        # try:
+        #     bi_encoder = SentenceTransformer('all-MiniLM-L6-v2')
+        #     logger.info(f"Searching knowledge base for: {state['user_input']}")
+            
+        #     embeddings = SentenceTransformerEmbeddings(bi_encoder)
+        #     vector_store = Chroma(
+        #         collection_name="oncology_qa",
+        #         embedding_function=embeddings,
+        #         persist_directory=str(VECTOR_STORE_DIR)
+        #     )
+            
+        #     # initial_results = vector_store.similarity_search(state['user_input'], k=k*3 if use_cross_encoder else k)
+        #     initial_results = vector_store.similarity_search(state['user_input'], k=5)
+        #     if not initial_results:
+        #         return []
+            
+        #     # if not use_cross_encoder:
+        #     #     return [{
+        #     #         "question": doc.metadata.get('Question'),
+        #     #         "answer": doc.metadata.get('Answer'),
+        #     #         "score": 1.0
+        #     #     } for doc in initial_results[:k]]
+            
+        #     unique_pairs = [(state['user_input'], doc.page_content) for doc in initial_results]
+        #     scores = cross_encoder.predict(unique_pairs)
+            
+        #     scored_results = list(zip(initial_results, scores))
+        #     scored_results.sort(key=lambda x: x[1], reverse=True)
+            
+        #     return [{
+        #         "question": doc.metadata.get('Question'),
+        #         "answer": doc.metadata.get('Answer'),
+        #         "score": float(score)
+        #     } for doc, score in scored_results[:k]]
+        
+        # except Exception as e:
+        #     logger.error(f"Search failed for state['user_input'] '{state['user_input']}': {str(e)}")
+        #     return []
+    
+    def document_retriever(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Document retriever"""
+        logger.info(f"Running document retriever")
         try:
-            session_id = str(uuid.uuid4())
-            return {
-                'session_id': session_id,
-                'timestamp': datetime.now(),
-                'privacy_level': 'high',  # Default to high privacy
-                'metadata': {
-                    'start_time': datetime.now().isoformat(),
-                    'version': '1.0',
-                    'relevance_checks': [],
-                    'answer_sources': []
-                },
-                'error_count': 0,
-                'last_interaction': datetime.now(),
-                'messages': []
-            }
+            query = state["user_input"]
+            state["search_results"] = search_qa(query)
+            return state
+        
         except Exception as e:
-            logger.error(f"Error in initiate_state: {str(e)}")
-            raise
-
+            logger.error(f"Error in document retriever: {str(e)}")
+            state["error_state"] = True
+            state["messages"].append(
+                AIMessage(content="I apologize, but I encountered an error while processing your request. Please try again.")
+            )
+            return state
+            
+    def relevance_checker(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """relevance_checker"""  
+        logger.info(f"Running relevance checker")
+        try:
+            for result in state["search_results"]:
+                result["is_relevant"] = check_relevance(state["user_input"], result)
+            
+            for result in state["search_results"]:
+                if not result["is_relevant"]:
+                    state["search_results"].remove(result)
+            return state
+            
+        except Exception as e:
+            logger.error(f"Error in relevance checker: {str(e)}")
+            state["error_state"] = True
+            state["messages"].append(
+                AIMessage(content="I apologize, but I encountered an error while processing your request. Please try again.")
+            )
+            
+            return state
+            
     def prepare_prompt(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Prepare the system prompt with guidelines and privacy notices."""
+        logger.info(f"Preparing system prompt")
         try:
             logger.info('Preparing system prompt')
             with open(os.path.abspath(os.path.join(current_dir, "..", "prompts/guidelines.txt")), "r") as file:
                 guidelines = file.read()
 
-            privacy_notice = """
-            IMPORTANT: This conversation is private and confidential. 
-            All personal information will be handled with strict privacy measures.
-            """
-
             system_prompt = f"""
             {guidelines}
-            
-            {privacy_notice}
-            
-            Remember to:
-            1. Always prioritize patient privacy
-            2. Use clear, simple language
-            3. Be empathetic and understanding
-            4. Recommend professional consultation when needed
-            5. Acknowledge uncertainty when present
-            6. Ensure answers are relevant and accurate
             """
+            human_prompt="""
+            This is the user prompt: {user_prompt}
+            This is the retrieved data: {retrieved_data}
+            """.format(user_prompt=state['user_prompt'],retrieved_data=state['retrieved_data'])
 
-            return {'messages': [SystemMessage(content=system_prompt)]}
+            return {'messages': [SystemMessage(content=system_prompt),HumanMessage(content=system_prompt)]}
         except Exception as e:
             logger.error(f"Error in prepare_prompt: {str(e)}")
             state['error_count'] += 1
             raise
 
-    def user(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle user input with privacy measures and relevance checking."""
-        try:
-            logger.info('Processing user input')
-            
-            # Initialize metadata if not present
-            if 'metadata' not in state:
-                state['metadata'] = {
-                    'relevance_checks': [],
-                    'start_time': datetime.now().isoformat(),
-                    'version': '1.0',
-                    'answer_sources': []
-                }
-            
-            # Get the last message from state
-            if not state.get('messages'):
-                return {'messages': [HumanMessage(content="I didn't catch that. Could you please repeat your question?")]}
-                
-            last_message = state['messages'][-1]
-            if not isinstance(last_message, HumanMessage):
-                return {'messages': [HumanMessage(content="I didn't catch that. Could you please repeat your question?")]}
-                
-            user_input = last_message.content
-            if not user_input.strip():
-                return {'messages': [HumanMessage(content="I didn't catch that. Could you please repeat your question?")]}
-
-            # Sanitize input
-            sanitized_input = self._sanitize_input(user_input)
-            
-            # Check relevance and get answer
-            answer_result = self.answer_generator.generate(sanitized_input)
-            
-            # Store answer result in state
-            state['answer_result'] = answer_result
-            
-            # Update state with relevance check results
-            if 'relevance_checks' not in state['metadata']:
-                state['metadata']['relevance_checks'] = []
-                
-            state['metadata']['relevance_checks'].append({
-                'timestamp': datetime.now().isoformat(),
-                'query': sanitized_input,
-                'status': answer_result.get('source', 'unknown'),
-                'confidence': answer_result.get('confidence', 0.0)
-            })
-            
-            # Update last interaction time
-            state['last_interaction'] = datetime.now()
-            
-            # Return updated state
-            return state
-            
-        except Exception as e:
-            logger.error(f"Error in user node: {str(e)}")
-            state['error_state'] = True
-            state['messages'].append(AIMessage(content="I apologize, but I encountered an error. Please try again."))
-            return state
 
     def agent(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Process agent response with error handling and privacy checks."""
+        logger.info(f"Running the agent state")
         try:
-            logger.info('Generating agent response')
-            if state.get('error_state'):
-                return state
-
-            # Get the answer result from state
-            answer_result = state.get('answer_result', {})
-            if not answer_result:
-                state['error_state'] = True
-                state['messages'].append(AIMessage(content="I apologize, but I couldn't process your question. Please try again."))
-                return state
-            
-            # Sanitize response for privacy
-            sanitized_response = self._sanitize_input(answer_result['answer'])
-            
-            # Add AI response to messages
-            state['messages'].append(AIMessage(content=sanitized_response))
-            
-            return state
+            ai_response=[self.llm_obj.llm.invoke(state['messages'])]
+            return {"messages":ai_response}
             
         except Exception as e:
             logger.error(f"Error in agent node: {str(e)}")
@@ -194,21 +158,13 @@ class Nodes:
             return state
 
     def final_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle conversation end and cleanup."""
+        """Final state"""
+        logger.info(f"Final state: {state}")
         try:
-            logger.info(f"Ending session {state['session_id']}")
-            # Add session summary to metadata
-            state['metadata']['end_time'] = datetime.now().isoformat()
-            state['metadata']['total_messages'] = len(state['messages'])
-            state['metadata']['relevance_stats'] = {
-                'total_checks': len(state['metadata']['relevance_checks']),
-                'verified_answers': sum(1 for check in state['metadata']['relevance_checks'] 
-                                     if check['status'] == 'verified_answer'),
-                'average_confidence': sum(check['confidence'] for check in state['metadata']['relevance_checks']) 
-                                    / len(state['metadata']['relevance_checks']) 
-                                    if state['metadata']['relevance_checks'] else 0
-            }
             return state
         except Exception as e:
-            logger.error(f"Error in final_state: {str(e)}")
+            logger.error(f"Error in final state: {str(e)}")
+            state['error_state'] = True
+            state['messages'].append(AIMessage(content="I apologize, but I encountered an error while processing your request. Please try again."))
             return state
+    
