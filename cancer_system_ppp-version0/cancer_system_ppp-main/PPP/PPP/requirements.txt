@@ -1,0 +1,38 @@
+# Core dependencies
+fastapi
+uvicorn
+pydantic
+python-dotenv
+typing-extensions
+
+# LangChain ecosystem
+langchain-core
+langchain-google-genai
+langchain-community
+langchain-openai
+langgraph
+langgraph.checkpoint
+langchain
+
+# Vector store and embeddings
+chromadb
+langchain-chroma
+sentence-transformers
+
+# Data processing
+pandas
+numpy
+
+# Web and utilities
+requests
+beautifulsoup4
+python-multipart
+starlette
+
+# Logging and development
+python-json-logger
+
+# Security
+python-jose
+passlib
+bcrypt
