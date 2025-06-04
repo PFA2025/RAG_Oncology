@@ -71,7 +71,10 @@ class WorkFlow:
             logger.error(f"Error setting up edges: {str(e)}")
             raise
 
-
+    def __call__(self,user_input):
+        response=self.workflow.invoke({'user_input':user_input},self.config)
+        return response
+    
     def show_state(self) -> None:
         """Display the current conversation state"""
         try:

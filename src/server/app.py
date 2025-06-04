@@ -45,34 +45,30 @@ async def health_check():
 @app.post("/chat", response_model=ChatResponse)
 async def chat(message: ChatMessage):
     try:
-        # Initialize new state
-        state = new_state()
+        work_flow = WorkFlow()
+        response = work_flow(message.message)
+        ai_response = response.get('messages', [])[-1].content
+        logger.info(f"AI response: {ai_response}")
         
-        # Prepare system prompt
-        state = workflow.nodes.prepare_prompt(state)
+        # # Get the AI response
+        # ai_messages = [m for m in state.get('messages', []) if isinstance(m, AIMessage)]
+        # if not ai_messages:
+        #     raise HTTPException(status_code=500, detail="No response generated")
         
-        # Process the message
-        state = workflow.process_message(state, message.message)
+        # last_ai_message = ai_messages[-1].content
         
-        # Get the AI response
-        ai_messages = [m for m in state.get('messages', []) if isinstance(m, AIMessage)]
-        if not ai_messages:
-            raise HTTPException(status_code=500, detail="No response generated")
+        # # Get confidence from relevance checks
+        # relevance_checks = state.get('metadata', {}).get('relevance_checks', [])
+        # confidence = relevance_checks[-1]['confidence'] if relevance_checks else 0.0
         
-        last_ai_message = ai_messages[-1].content
+        # # Get source from answer result
+        # source = state.get('answer_result', {}).get('source', 'unknown')
         
-        # Get confidence from relevance checks
-        relevance_checks = state.get('metadata', {}).get('relevance_checks', [])
-        confidence = relevance_checks[-1]['confidence'] if relevance_checks else 0.0
-        
-        # Get source from answer result
-        source = state.get('answer_result', {}).get('source', 'unknown')
-        
-        return ChatResponse(
-            response=last_ai_message,
-            confidence=confidence,
-            source=source
-        )
+        # return ChatResponse(
+        #     response=last_ai_message,
+        #     confidence=confidence,
+        #     source=source
+        # )
     except Exception as e:
         logger.error(f"Error in chat endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
