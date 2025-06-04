@@ -121,11 +121,30 @@ def delete_user_memory(item_id: int, db: Session = Depends(get_db)):
 async def chat(message: ChatMessage):
     """Simple chat endpoint that echoes the message back"""
     try:
-        return ChatResponse(
-            response=f"Echo: {message.message}",
-            confidence=1.0,
-            source="echo_service"
-        )
+        work_flow = WorkFlow()
+        response = work_flow(message.message)
+        ai_response = response.get('messages', [])[-1].content
+        logger.info(f"AI response: {ai_response}")
+        
+        # # Get the AI response
+        # ai_messages = [m for m in state.get('messages', []) if isinstance(m, AIMessage)]
+        # if not ai_messages:
+        #     raise HTTPException(status_code=500, detail="No response generated")
+        
+        # last_ai_message = ai_messages[-1].content
+        
+        # # Get confidence from relevance checks
+        # relevance_checks = state.get('metadata', {}).get('relevance_checks', [])
+        # confidence = relevance_checks[-1]['confidence'] if relevance_checks else 0.0
+        
+        # # Get source from answer result
+        # source = state.get('answer_result', {}).get('source', 'unknown')
+        
+        # return ChatResponse(
+        #     response=last_ai_message,
+        #     confidence=confidence,
+        #     source=source
+        # )
     except Exception as e:
         logger.error(f"Error in chat endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

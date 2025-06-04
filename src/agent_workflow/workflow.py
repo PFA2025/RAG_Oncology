@@ -71,7 +71,10 @@ class WorkFlow:
             logger.error(f"Error setting up edges: {str(e)}")
             raise
 
-
+    def __call__(self,user_input):
+        response=self.workflow.invoke({'user_input':user_input},self.config)
+        return response
+    
     def show_state(self) -> None:
         """Display the current conversation state"""
         try:
@@ -111,7 +114,9 @@ class WorkFlow:
         
     def condition_function(self, state: Dict[str, Any]) -> bool:
         """Condition function to check if the search results are relevant"""
+        
         try:
+            logger.info(f"This is the search results: {state['search_results']}")
             return any(result['is_relevant'] for result in state['search_results'])
         except Exception as e:
             logger.error(f"Error in condition function: {str(e)}")
