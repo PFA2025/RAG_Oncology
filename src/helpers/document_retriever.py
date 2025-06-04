@@ -55,9 +55,17 @@ def search_qa(query: str, k: int = 5, use_cross_encoder: bool = False) -> List[D
         List of dictionaries containing question, answer, and score
     """
     try:
+        
         logger.info(f"Searching knowledge base for: {query}")
         
         vector_store = get_vector_store()
+        docs = vector_store.get()
+        logger.info(f"printing all the doc that exist in vector store")
+        logger.info('---------------------------------')
+        for i, doc in enumerate(docs['documents']):
+            print(f"\nDocument {i+1}:")
+            print(doc)
+        logger.info('---------------------------------')
         fetch_count = k * 3 if use_cross_encoder else k
         initial_results = vector_store.similarity_search(query, k=fetch_count)
         
