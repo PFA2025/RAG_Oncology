@@ -114,7 +114,9 @@ class WorkFlow:
         
     def condition_function(self, state: Dict[str, Any]) -> bool:
         """Condition function to check if the search results are relevant"""
+        
         try:
+            logger.info(f"This is the search results: {state['search_results']}")
             return any(result['is_relevant'] for result in state['search_results'])
         except Exception as e:
             logger.error(f"Error in condition function: {str(e)}")

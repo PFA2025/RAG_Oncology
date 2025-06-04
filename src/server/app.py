@@ -5,7 +5,6 @@ from typing import Optional
 from agent_workflow.workflow import WorkFlow
 from langchain_core.messages import HumanMessage, AIMessage
 import logging
-from agent_workflow.state import new_state
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

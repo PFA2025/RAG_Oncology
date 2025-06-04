@@ -146,7 +146,7 @@ class Nodes:
 
     def agent(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Process agent response with error handling and privacy checks."""
-        logger.info(f"Agent state: {state}")
+        logger.info(f"Running the agent state")
         try:
             ai_response=[self.llm_obj.llm.invoke(state['messages'])]
             return {"messages":ai_response}
