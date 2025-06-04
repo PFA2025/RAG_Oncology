@@ -5,3 +5,6 @@ from langgraph.graph.message import add_messages
 class State(TypedDict):
     user_input: str
     messages: Annotated[list,add_messages]
+    search_results: list
+    
+    error_state: bool
