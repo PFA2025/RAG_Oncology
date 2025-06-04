@@ -62,7 +62,8 @@ class WorkFlow:
             self.workflow.add_edge("__start__", 'initiate_state')
             self.workflow.add_edge('initiate_state', 'document_retriever')
             self.workflow.add_edge('document_retriever', 'relevance_checker')
-            self.workflow.add_conditional_edges('relevance_checker', condition_function,{True:'prepare_prompt',False:"final_state"})
+            self.workflow.add_conditional_edges('relevance_checker', self.condition_function, {True:'prepare_prompt',False:"final_state"})
+            self.workflow.add_edge('prepare_prompt', 'agent')
             self.workflow.add_edge('agent', 'final_state')
             self.workflow.add_edge('final_state', "__end__")
             logger.info("Edges setup completed")
@@ -107,3 +108,11 @@ class WorkFlow:
         except Exception as e:
             logger.error(f"Error returning state value: {str(e)}")
             return None
+        
+    def condition_function(self, state: Dict[str, Any]) -> bool:
+        """Condition function to check if the search results are relevant"""
+        try:
+            return any(result['is_relevant'] for result in state['search_results'])
+        except Exception as e:
+            logger.error(f"Error in condition function: {str(e)}")
+            return False

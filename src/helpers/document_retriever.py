@@ -26,12 +26,11 @@ class SentenceTransformerEmbeddings:
         return self.model.encode(text).tolist()
 
 
-def format_result(doc: Document, score: float = 1.0) -> Dict[str, Any]:
+def format_result(doc: Document) -> Dict[str, Any]:
     """Format a document into a result dictionary."""
     return {
         "question": doc.metadata.get('Question', ''),
         "answer": doc.metadata.get('Answer', ''),
-        "score": float(score)
     }
 
 def get_vector_store() -> Chroma:
@@ -43,7 +42,7 @@ def get_vector_store() -> Chroma:
         persist_directory=str(VECTOR_STORE_DIR)
     )
 
-def search_qa(query: str, k: int = 5, use_cross_encoder: bool = True) -> List[Dict[str, Any]]:
+def search_qa(query: str, k: int = 5, use_cross_encoder: bool = False) -> List[Dict[str, Any]]:
     """
     Search the QA knowledge base for relevant answers.
     
@@ -68,6 +67,7 @@ def search_qa(query: str, k: int = 5, use_cross_encoder: bool = True) -> List[Di
         if not use_cross_encoder:
             return [format_result(doc) for doc in initial_results[:k]]
         
+        
         # Re-rank with cross-encoder
         query_doc_pairs = [(query, doc.page_content) for doc in initial_results]
         scores = cross_encoder.predict(query_doc_pairs)
@@ -76,7 +76,7 @@ def search_qa(query: str, k: int = 5, use_cross_encoder: bool = True) -> List[Di
         scored_results = zip(initial_results, scores)
         top_results = sorted(scored_results, key=lambda x: x[1], reverse=True)[:k]
         
-        return [format_result(doc, score) for doc, score in top_results]
+        return [format_result(doc) for doc in top_results]
         
     except Exception as e:
         logger.error(f"Search failed for query '{query}': {str(e)}", exc_info=True)

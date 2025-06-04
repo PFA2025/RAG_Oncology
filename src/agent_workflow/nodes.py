@@ -88,6 +88,7 @@ class Nodes:
             query = state["user_input"]
             state["search_results"] = search_qa(query)
             return state
+        
         except Exception as e:
             logger.error(f"Error in document retriever: {str(e)}")
             state["error_state"] = True
@@ -99,11 +100,23 @@ class Nodes:
     def relevance_checker(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """relevance_checker"""  
         try:
-            search_results = state["search_results"]
-            query = state["user_input"]
+            for result in state["search_results"]:
+                result["is_relevant"] = check_relevance(state["user_input"], result)
             
+            for result in state["search_results"]:
+                if not result["is_relevant"]:
+                    state["search_results"].remove(result)
+            return state
             
-    
+        except Exception as e:
+            logger.error(f"Error in relevance checker: {str(e)}")
+            state["error_state"] = True
+            state["messages"].append(
+                AIMessage(content="I apologize, but I encountered an error while processing your request. Please try again.")
+            )
+            
+            return state
+            
     def prepare_prompt(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Prepare the system prompt with guidelines and privacy notices."""
         try:
@@ -139,3 +152,6 @@ class Nodes:
             return state
 
     def final_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        
+
+    

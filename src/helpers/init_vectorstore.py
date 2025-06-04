@@ -86,13 +86,11 @@ def create_vectorstore():
     documents = []
     for _, row in oncology_data.iterrows():
         content = f"Question: {row['Question']}\nAnswer: {row['Answer']}"
-        metadata = {"Question": row['Question'], "Answer": row['Answer']}
-        documents.append(Document(page_content=content, metadata=metadata))
+        documents.append(Document(page_content=content))
     
     vector_store.add_documents(documents=documents)
     logger.info(f"Vector store created with {len(documents)} documents.")
     return vector_store
-
 
 def main():
     logger.info("Initializing vector store...")
