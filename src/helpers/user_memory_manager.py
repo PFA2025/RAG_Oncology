@@ -23,10 +23,15 @@ class UserMemoryManager:
     """
     
     @staticmethod
-    def create_memory(name: Optional[str] = None, description: Optional[str] = None) -> Dict[str, Any]:
+    def create_memory(user_id: int, name: Optional[str] = None, description: Optional[str] = None) -> Dict[str, Any]:
         """
         Create a new user memory.
         
+        Args:
+            user_id: The ID of the user this memory belongs to
+            name: Optional name for the memory
+            description: Optional description of the memory
+            
         Returns:
             dict: The created user memory
         """
@@ -34,7 +39,13 @@ class UserMemoryManager:
         
         try:
             with get_db_session() as session:
+                # Check if user already has a memory
+                existing_memory = session.query(UserMemory).filter(UserMemory.user_id == user_id).first()
+                if existing_memory:
+                    raise ValueError(f"User {user_id} already has a memory entry")
+                    
                 memory = UserMemory(
+                    user_id=user_id,
                     name=name,
                     description=description
                 )
@@ -48,10 +59,13 @@ class UserMemoryManager:
             raise
 
     @staticmethod
-    def get_memory(memory_id: int) -> Optional[Dict[str, Any]]:
+    def get_memory_by_id(memory_id: int) -> Optional[Dict[str, Any]]:
         """
-        Retrieve a user memory by id.
+        Retrieve a user memory by its internal ID.
         
+        Args:
+            memory_id: The internal ID of the memory
+            
         Returns:
             Optional[dict]: The user memory if found, None otherwise
         """
@@ -62,14 +76,40 @@ class UserMemoryManager:
                 memory = session.query(UserMemory).filter(UserMemory.id == memory_id).first()
                 return memory.to_dict() if memory else None
         except Exception as e:
+            logging.error(f"Error getting memory by ID {memory_id}: {str(e)}")
+            raise
+    
+    @staticmethod
+    def get_memory_by_user(user_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve a user memory by user ID.
+        
+        Args:
+            user_id: The ID of the user whose memory to retrieve
+            
+        Returns:
+            Optional[dict]: The user memory if found, None otherwise
+        """
+        from src.models.user_memory import UserMemory
+        
+        try:
+            with get_db_session() as session:
+                memory = session.query(UserMemory).filter(UserMemory.user_id == user_id).first()
+                return memory.to_dict() if memory else None
+        except Exception as e:
             logging.error(f"Error getting memory {memory_id}: {str(e)}")
             raise
     
     @staticmethod
-    def update_memory(memory_id: int, name: Optional[str] = None, description: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def update_memory(user_id: int, name: Optional[str] = None, description: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
-        Update a user's memory.
+        Update a user's memory by user ID.
         
+        Args:
+            user_id: The ID of the user whose memory to update
+            name: New name for the memory (optional)
+            description: New description for the memory (optional)
+            
         Returns:
             dict: The updated user memory if found, None otherwise
         """
@@ -77,7 +117,7 @@ class UserMemoryManager:
         
         try:
             with get_db_session() as session:
-                memory = session.query(UserMemory).filter(UserMemory.id == memory_id).first()
+                memory = session.query(UserMemory).filter(UserMemory.user_id == user_id).first()
                 if not memory:
                     return None
                     
@@ -94,10 +134,13 @@ class UserMemoryManager:
             raise
     
     @staticmethod
-    def delete_memory(memory_id: int) -> bool:
+    def delete_memory(user_id: int) -> bool:
         """
-        Delete a user memory.
+        Delete a user memory by user ID.
         
+        Args:
+            user_id: The ID of the user whose memory to delete
+            
         Returns:
             bool: True if deleted, False if not found
         """
@@ -105,7 +148,7 @@ class UserMemoryManager:
         
         try:
             with get_db_session() as session:
-                memory = session.query(UserMemory).filter(UserMemory.id == memory_id).first()
+                memory = session.query(UserMemory).filter(UserMemory.user_id == user_id).first()
                 if not memory:
                     return False
                     
