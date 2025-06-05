@@ -12,11 +12,9 @@ langchain-community
 langchain-openai
 langgraph
 langgraph.checkpoint
-langchain
 
 # Vector store and embeddings
-chromadb
-langchain-chroma
+faiss-cpu  # Use faiss-gpu if you have CUDA
 sentence-transformers
 
 # Data processing
@@ -39,4 +37,3 @@ bcrypt
 
 # User interface
 gradio>=4.0.0
-python-dotenv>=0.19.0

@@ -1,90 +1,73 @@
 import logging
 import pandas as pd
-import numpy as np
 from pathlib import Path
-from langchain_chroma import Chroma
+from langchain_community.vectorstores import FAISS
 from langchain.schema import Document
 from dotenv import load_dotenv
+import shutil
 
-from .constants import bi_encoder, VECTOR_STORE_DIR, DATA_FILE, SCRIPT_DIR
-from .document_retriever import SentenceTransformerEmbeddings
+from .constants import VECTOR_STORE_DIR, DATA_FILE
+from .document_retriever import embeddings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def _remove_duplicates(df: pd.DataFrame, similarity_threshold: float = 0.85) -> pd.DataFrame:
-    logger.info("Removing duplicates from dataset")
-    print(f"Initial number of entries: {len(df)}")
-    
-    # 1. Remove exact duplicates
-    df = df.drop_duplicates(subset=['Question', 'Answer'], keep='first')
-    print(f"After removing exact duplicates: {len(df)}")
-    
-    # 2. Remove similar questions
-    if len(df) > 1:
-        questions = df['Question'].tolist()
-        question_embeddings = bi_encoder.encode(questions)
-        similarity_matrix = np.dot(question_embeddings, question_embeddings.T)
-        
-        to_drop = set()
-        for i in range(len(df)):
-            if i in to_drop:
-                continue
-            for j in range(i + 1, len(df)):
-                if j in to_drop:
-                    continue
-                if similarity_matrix[i, j] > similarity_threshold:
-                    if len(df.iloc[i]['Answer']) < len(df.iloc[j]['Answer']):
-                        to_drop.add(i)
-                    else:
-                        to_drop.add(j)
-        
-        df = df.drop(df.index[list(to_drop)])
-        print(f"After removing similar questions: {len(df)}")
-    
-    return df
-
-
 def create_vectorstore():
+    """Create and initialize the FAISS vector store from the oncology Q&A data."""
     load_dotenv()
-    embeddings = SentenceTransformerEmbeddings(bi_encoder)
     
-    try:
-        import chromadb
-        client = chromadb.PersistentClient(path=str(VECTOR_STORE_DIR))
-        client.delete_collection("oncology_qa")
-        logger.info("Deleted existing collection")
-    except Exception as e:
-        logger.info(f"No existing collection to delete: {e}")
+    # Remove existing FAISS index if it exists
+    if VECTOR_STORE_DIR.exists():
+        try:
+            shutil.rmtree(VECTOR_STORE_DIR)
+            logger.info(f"Removed existing FAISS index at {VECTOR_STORE_DIR}")
+        except Exception as e:
+            logger.warning(f"Error removing existing FAISS index: {e}")
     
-    vector_store = Chroma(
-        collection_name="oncology_qa",
-        embedding_function=embeddings,
-        persist_directory=str(VECTOR_STORE_DIR)
-    )
+    # Create parent directory if it doesn't exist
+    VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
     
     try:
         if not DATA_FILE.exists():
             logger.error(f"Data file not found at: {DATA_FILE}")
             return None
             
+        # Load and clean data
         oncology_data = pd.read_excel(DATA_FILE)
         logger.info(f"Loaded {len(oncology_data)} rows from Excel")
+        
+        # Remove exact duplicates
+        oncology_data = oncology_data.drop_duplicates(subset=['Question', 'Answer'])
+        logger.info(f"After removing exact duplicates: {len(oncology_data)} rows")
+        
+        # Create documents with metadata
+        documents = []
+        for idx, row in oncology_data.iterrows():
+            content = f"Question: {row['Question']}\nAnswer: {row['Answer']}"
+            metadata = {
+                "source": str(idx), 
+                "question": row['Question'], 
+                "answer": row['Answer']
+            }
+            documents.append(Document(page_content=content, metadata=metadata))
+        
+        # Create and save the FAISS index
+        logger.info(f"Creating FAISS index with {len(documents)} documents...")
+        vector_store = FAISS.from_documents(documents=documents, embedding=embeddings)
+        
+        # Save the index
+        vector_store.save_local(
+            folder_path=str(VECTOR_STORE_DIR),
+            index_name="oncology_qa"
+        )
+        
+        logger.info(f"FAISS index created and saved to {VECTOR_STORE_DIR}")
+        return vector_store
+        
     except Exception as e:
-        logger.error(f"Error loading Excel file: {e}")
+        logger.error(f"Error creating vector store: {e}", exc_info=True)
         return None
-    
-    oncology_data = _remove_duplicates(oncology_data)
-    
-    documents = []
-    for _, row in oncology_data.iterrows():
-        content = f"Question: {row['Question']}\nAnswer: {row['Answer']}"
-        documents.append(Document(page_content=content))
-    
-    vector_store.add_documents(documents=documents)
-    logger.info(f"Vector store created with {len(documents)} documents.")
-    return vector_store
 
 def main():
     logger.info("Initializing vector store...")
