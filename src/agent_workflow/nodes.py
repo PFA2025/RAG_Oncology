@@ -149,25 +149,44 @@ class Nodes:
             
     def prepare_prompt(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Prepare the system prompt with guidelines and privacy notices."""
-        logger.info(f"Preparing system prompt")
+        logger.info("Preparing system prompt")
         try:
-            logger.info('Preparing system prompt')
+            # Read guidelines from file
             with open(os.path.abspath(os.path.join(current_dir, "..", "prompts/guidelines.txt")), "r") as file:
                 guidelines = file.read()
 
-            system_prompt = f"""
-            {guidelines}
-            """
-            human_prompt="""
-            This is the user prompt: {user_prompt}
-            This is the retrieved data: {retrieved_data}
-            """.format(user_prompt=state['user_prompt'],retrieved_data=state['retrieved_data'])
-
-            return {'messages': [SystemMessage(content=system_prompt),HumanMessage(content=system_prompt)]}
+            # Create system message with guidelines
+            system_message = SystemMessage(content=guidelines)
+            
+            # Format the retrieved data for the prompt
+            retrieved_data = "\n".join(
+                f"Q: {res.get('question', '')}\nA: {res.get('answer', '')}"
+                for res in state.get('search_results', [])
+            )
+            
+            # Create user message with the query and retrieved data
+            user_message = HumanMessage(
+                content=f"""
+                User Query: {state['user_input']}
+                
+                Retrieved Information:
+                {retrieved_data if retrieved_data else 'No relevant information found'}
+                """
+            )
+            
+            # Add messages to state
+            messages = state.get('messages', [])
+            messages.extend([system_message, user_message])
+            
+            return {'messages': messages}
+            
         except Exception as e:
             logger.error(f"Error in prepare_prompt: {str(e)}")
-            state['error_count'] += 1
-            raise
+            state['error_state'] = True
+            state['messages'].append(
+                AIMessage(content="I apologize, but I encountered an error while processing your request. Please try again.")
+            )
+            return state
 
 
     def agent(self, state: Dict[str, Any]) -> Dict[str, Any]:

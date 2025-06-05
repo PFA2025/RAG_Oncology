@@ -4,16 +4,10 @@ import numpy as np
 from pathlib import Path
 from langchain_chroma import Chroma
 from langchain.schema import Document
-from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
 
-# Initialize models
-bi_encoder = SentenceTransformer('all-MiniLM-L6-v2')
-
-# Path setup
-SCRIPT_DIR = Path(__file__).parent
-DATA_FILE = SCRIPT_DIR / '../../data/data_oncology.xlsx'
-VECTOR_STORE_DIR = SCRIPT_DIR / '../../chroma_db_oncology'
+from .constants import bi_encoder, VECTOR_STORE_DIR, DATA_FILE, SCRIPT_DIR
+from .document_retriever import SentenceTransformerEmbeddings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

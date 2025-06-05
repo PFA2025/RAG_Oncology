@@ -1,19 +1,26 @@
 from langchain_chroma import Chroma
 from langchain.schema import Document
 from sentence_transformers import CrossEncoder
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import logging
 from pathlib import Path
 
-# Import from init_vectorstore to share models and paths
-from .init_vectorstore import bi_encoder, VECTOR_STORE_DIR
+# Import from constants to share models and paths
+from .constants import bi_encoder, VECTOR_STORE_DIR
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize cross-encoder for re-ranking
-cross_encoder = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+cross_encoder = None
+
+def get_cross_encoder():
+    """Lazy load the cross-encoder to avoid loading it if not needed."""
+    global cross_encoder
+    if cross_encoder is None:
+        cross_encoder = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+    return cross_encoder
 
 class SentenceTransformerEmbeddings:
     def __init__(self, model):
@@ -28,9 +35,20 @@ class SentenceTransformerEmbeddings:
 
 def format_result(doc: Document) -> Dict[str, Any]:
     """Format a document into a result dictionary."""
+    # Parse the question and answer from the page_content
+    content = doc.page_content
+    question = ""
+    answer = ""
+    
+    # The content is in format "Question: ...\nAnswer: ..."
+    if "Question:" in content and "Answer:" in content:
+        parts = content.split("Answer:", 1)
+        question = parts[0].replace("Question:", "").strip()
+        answer = parts[1].strip() if len(parts) > 1 else ""
+    
     return {
-        "question": doc.metadata.get('Question', ''),
-        "answer": doc.metadata.get('Answer', ''),
+        "question": question,
+        "answer": answer,
     }
 
 def get_vector_store() -> Chroma:
@@ -78,6 +96,7 @@ def search_qa(query: str, k: int = 5, use_cross_encoder: bool = False) -> List[D
         
         # Re-rank with cross-encoder
         query_doc_pairs = [(query, doc.page_content) for doc in initial_results]
+        cross_encoder = get_cross_encoder()
         scores = cross_encoder.predict(query_doc_pairs)
         
         # Combine results with scores and sort
