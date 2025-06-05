@@ -67,13 +67,13 @@ def create_chat_interface():
                     return "", chat_history
                 
                 # Add user message to chat history
-                chat_history.append(("user", message))
+                chat_history.append({"role": "user", "content": message})
                 
                 # Get bot response
                 bot_message = chat_with_agent(message, chat_history, user_id)
                 
                 # Add bot response to chat history
-                chat_history.append(("assistant", bot_message))
+                chat_history.append({"role": "assistant", "content": bot_message})
                 
                 return "", chat_history
             

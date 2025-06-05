@@ -1,6 +1,6 @@
 from typing import Dict, Any
-from llm_factory.gemini import GoogleGen
-from relevance_check.relevance_check import HybridRelevanceChecker
+from src.llm_factory.gemini import GoogleGen
+from src.relevance_check.relevance_check import HybridRelevanceChecker
 from langchain_core.messages import HumanMessage, SystemMessage
 import logging
 

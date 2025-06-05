@@ -1,13 +1,15 @@
 import sys
 import logging
 from datetime import datetime
-from llm_factory.gemini import GoogleGen
-from helpers.relevance_checker import *
+
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from sentence_transformers import SentenceTransformer
 from langchain_chroma import Chroma
 from langchain.schema import Document
-from helpers.document_retriever import *
+
+from src.llm_factory.gemini import GoogleGen
+from src.helpers.relevance_checker import *
+from src.helpers.document_retriever import *
 
 import time
 import os
@@ -89,7 +91,17 @@ class Nodes:
         logger.info(f"Running document retriever")
         try:
             query = state["user_input"]
-            state["search_results"] = search_qa(query)
+            search_results = search_qa(query)
+            
+            if not search_results:
+                logger.warning("No search results found for query")
+                state["search_results"] = []
+                state["messages"].append(
+                    AIMessage(content="I couldn't find any relevant information in my knowledge base. Could you please rephrase your question or provide more details?")
+                )
+            else:
+                state["search_results"] = search_results
+                
             return state
         
         except Exception as e:
@@ -101,15 +113,30 @@ class Nodes:
             return state
             
     def relevance_checker(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """relevance_checker"""  
+        """Check relevance of search results"""
         logger.info(f"Running relevance checker")
         try:
+            # Skip if no search results
+            if not state.get("search_results"):
+                logger.warning("No search results to check for relevance")
+                return state
+                
+            # Check relevance for each result
             for result in state["search_results"]:
                 result["is_relevant"] = check_relevance(state["user_input"], result)
             
-            for result in state["search_results"]:
-                if not result["is_relevant"]:
-                    state["search_results"].remove(result)
+            # Filter out irrelevant results
+            state["search_results"] = [
+                result for result in state["search_results"] 
+                if result.get("is_relevant", False)
+            ]
+            
+            if not state["search_results"]:
+                logger.info("No relevant results found after relevance check")
+                state["messages"].append(
+                    AIMessage(content="I couldn't find any relevant information for your query. Could you please provide more details or rephrase your question?")
+                )
+                
             return state
             
         except Exception as e:
@@ -118,7 +145,6 @@ class Nodes:
             state["messages"].append(
                 AIMessage(content="I apologize, but I encountered an error while processing your request. Please try again.")
             )
-            
             return state
             
     def prepare_prompt(self, state: Dict[str, Any]) -> Dict[str, Any]:

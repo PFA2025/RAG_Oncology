@@ -1,6 +1,7 @@
 from typing import Dict, Any, List
 from langchain.schema import HumanMessage
-from llm_factory.gemini import GoogleGen
+
+from src.llm_factory.gemini import GoogleGen
 
 def check_relevance(query: str, search_result: Dict[str, Any], llm=None) -> bool:
     """
