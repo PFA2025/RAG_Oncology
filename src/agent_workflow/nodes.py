@@ -1,5 +1,4 @@
 import sys
-import logging
 from datetime import datetime
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -10,6 +9,7 @@ from langchain.schema import Document
 from src.llm_factory.gemini import GoogleGen
 from src.helpers.relevance_checker import *
 from src.helpers.document_retriever import *
+from src.config.logs import get_logger
 
 import time
 import os
@@ -18,16 +18,8 @@ import json
 import uuid
 from typing import Dict, Any, Optional
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('agent_workflow.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+# Initialize logger
+logger = get_logger(__name__)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -101,7 +93,8 @@ class Nodes:
                 )
             else:
                 state["search_results"] = search_results
-                
+            
+            logger.info(f"Search results: {state['search_results']}")
             return state
         
         except Exception as e:
@@ -110,6 +103,8 @@ class Nodes:
             state["messages"].append(
                 AIMessage(content="I apologize, but I encountered an error while processing your request. Please try again.")
             )
+            
+            logger.info(f"Error in document retriever: {str(e)}")
             return state
             
     def relevance_checker(self, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -137,6 +132,7 @@ class Nodes:
                     AIMessage(content="I couldn't find any relevant information for your query. Could you please provide more details or rephrase your question?")
                 )
                 
+            logger.info(f"Search results: {state['search_results']}")
             return state
             
         except Exception as e:
@@ -145,39 +141,53 @@ class Nodes:
             state["messages"].append(
                 AIMessage(content="I apologize, but I encountered an error while processing your request. Please try again.")
             )
+            
+            logger.info(f"Error in relevance checker: {str(e)}")
             return state
             
     def prepare_prompt(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Prepare the system prompt with guidelines and privacy notices."""
-        logger.info("Preparing system prompt")
+        """
+        Prepare the system prompt with guidelines and integrate dynamic content.
+        
+        Args:
+            state (Dict[str, Any]): Current state containing user input and search results
+            
+        Returns:
+            Dict[str, Any]: Updated state with system and user messages
+        """
+        logger.info("Preparing system prompt with dynamic content")
         try:
-            # Read guidelines from file
+            # Read template from file
             with open(os.path.abspath(os.path.join(current_dir, "..", "prompts/guidelines.txt")), "r") as file:
-                guidelines = file.read()
+                template = file.read()
 
-            # Create system message with guidelines
-            system_message = SystemMessage(content=guidelines)
+            # Format sources
+            sources = []
+            for i, res in enumerate(state.get('search_results', []), 1):
+                if 'answer' in res and 'question' in res:
+                    sources.append(f"Source {i}:\nQ: {res['question']}\nA: {res['answer']}")
             
-            # Format the retrieved data for the prompt
-            retrieved_data = "\n".join(
-                f"Q: {res.get('question', '')}\nA: {res.get('answer', '')}"
-                for res in state.get('search_results', [])
+            sources_text = "\n\n".join(sources) if sources else "No relevant sources found."
+            
+            # Format the template with dynamic content using str.format()
+            system_content = template.format(
+                sources=sources_text,
+                question=state['user_input']
             )
             
-            # Create user message with the query and retrieved data
-            user_message = HumanMessage(
-                content=f"""
-                User Query: {state['user_input']}
-                
-                Retrieved Information:
-                {retrieved_data if retrieved_data else 'No relevant information found'}
-                """
-            )
+            # Create system message with formatted guidelines
+            system_message = SystemMessage(content=system_content)
+            
+            # User message contains just the query
+            user_message = HumanMessage(content=state['user_input'])
+            
+            logger.debug(f"System message prepared with {len(sources)} sources")
             
             # Add messages to state
             messages = state.get('messages', [])
             messages.extend([system_message, user_message])
             
+            logger.info(f"Messages: {messages}")
             return {'messages': messages}
             
         except Exception as e:
@@ -194,6 +204,7 @@ class Nodes:
         logger.info(f"Running the agent state")
         try:
             ai_response=[self.llm_obj.llm.invoke(state['messages'])]
+            logger.info(f"AI Response: {ai_response}")
             return {"messages":ai_response}
             
         except Exception as e:
@@ -203,9 +214,37 @@ class Nodes:
             return state
 
     def final_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Final state"""
-        logger.info(f"Final state: {state}")
+        """
+        Final state processing. Adds source references to the AI response.
+        
+        Args:
+            state: The current state dictionary containing messages and search results
+            
+        Returns:
+            Updated state with sources added to the AI response
+        """
+        logger.info("Processing final state and adding sources to response")
         try:
+            # Get the last AI message
+            if 'messages' in state and state['messages']:
+                last_message = state['messages'][-1]
+                
+                # Format sources
+                sources = []
+                for i, res in enumerate(state.get('search_results', []), 1):
+                    if 'answer' in res and 'question' in res:
+                        sources.append(f"Source {i}:\nQ: {res['question']}\nA: {res['answer']}")
+                
+                if sources:
+                    sources_text = "\n---\n**Sources:**\n" + "\n".join(sources)
+                    # Append sources to the last message
+                    state['messages'][-1] = AIMessage(
+                        content=last_message.content + sources_text
+                    )
+                    logger.debug(f"Added {len(sources)} sources to the response")
+                else:
+                    logger.debug("No valid sources found to add to the response")
+            
             return state
         except Exception as e:
             logger.error(f"Error in final state: {str(e)}")
