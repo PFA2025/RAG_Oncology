@@ -8,7 +8,7 @@ env_path = Path(__file__).resolve().parents[2] / '.env'
 load_dotenv(env_path)
 
 class GoogleGen:
-    def __init__(self, model='gemini-2.5-flash-preview-05-20'):
+    def __init__(self, model='gemini-1.5-flash'):
         # Get API key from environment variables
         api_key = os.getenv('GEMINI_API_KEY')
         if not api_key:

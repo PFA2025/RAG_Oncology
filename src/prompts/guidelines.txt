@@ -4,6 +4,12 @@ Given the following information:
 {sources}
 </sources>
 
+The patient name is:
+{patient_name}
+
+The patient description is:
+{patient_description}
+
 And the following question
 <question>
 {question}
@@ -35,6 +41,11 @@ Your primary directive is to answer the user's question by strictly adhering to 
 
 Your final output must be short, easy to read, and follow this exact structure:
 
-<Empathetic Acknowledgment>
+<Empathetic Acknowledgment With User Name>
 
 <Direct Answer Based Strictly on Sources>
+
+[Critical Formatting Guidlines]
+1. NEVER use HTML tags or markdown formatting.
+2. DO NOT generate any tags like  <Empathetic Acknowledgment With User Name> 
+

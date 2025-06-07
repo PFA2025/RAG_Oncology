@@ -11,12 +11,20 @@ from src.helpers.relevance_checker import *
 from src.helpers.document_retriever import *
 from src.config.logs import get_logger
 
+# Import database configuration and models
+from src.config.database import get_db, Base, engine
+from src.models.user_memory import UserMemory, init_db
+from src.helpers.user_memory_manager import UserMemoryManager
+
+# Initialize the database
+init_db()
+
 import time
 import os
 from pathlib import Path
 import json
 import uuid
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -37,10 +45,27 @@ class Nodes:
 
     def initiate_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize the conversation state"""
-        logger.info(f"Initializing conversation state")
+        logger.info(f"Initializing conversation state with patient_id: {state.get('patient_id')}")
+        
+        # Initialize patient info in state
+        state['patient_name'] = ""
+        state['patient_description'] = ""
+        
+        # If patient_id is provided, fetch the patient info
+        patient_id = state.get('patient_id', 0)
+        if patient_id and int(patient_id) > 0:
+            try:
+                patient_info = UserMemoryManager.get_memory_by_user(patient_id)
+                if patient_info:
+                    state['patient_name'] = patient_info.get('name', '')
+                    state['patient_description'] = patient_info.get('description', '')
+                    logger.info(f"Patient info loaded: {state['patient_name']}")
+                else:
+                    logger.warning(f"No patient found with ID: {patient_id}")
+            except Exception as e:
+                logger.error(f"Error fetching patient info: {str(e)}")
+        
         return state
-        # try:
-        #     bi_encoder = SentenceTransformer('all-MiniLM-L6-v2')
         #     logger.info(f"Searching knowledge base for: {state['user_input']}")
             
         #     embeddings = SentenceTransformerEmbeddings(bi_encoder)
@@ -169,10 +194,15 @@ class Nodes:
             
             sources_text = "\n\n".join(sources) if sources else "No relevant sources found."
             
+            # Log patient info for debugging
+            logger.info(f"Using patient info - Name: {state.get('patient_name', 'N/A')}, Description: {state.get('patient_description', 'N/A')}")
+            
             # Format the template with dynamic content using str.format()
             system_content = template.format(
                 sources=sources_text,
-                question=state['user_input']
+                question=state['user_input'],
+                patient_name=state.get('patient_name', ''),
+                patient_description=state.get('patient_description', '')
             )
             
             # Create system message with formatted guidelines

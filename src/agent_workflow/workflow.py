@@ -71,8 +71,23 @@ class WorkFlow:
             logger.error(f"Error setting up edges: {str(e)}")
             raise
 
-    def __call__(self,user_input):
-        response=self.workflow.invoke({'user_input':user_input},self.config)
+    def __call__(self, message: str, patient_id: int = 0):
+        """Execute the workflow with the given message and optional patient ID
+        
+        Args:
+            message: The user's message
+            patient_id: Optional patient ID to retrieve patient context
+            
+        Returns:
+            The workflow response
+        """
+        response = self.workflow.invoke(
+            {
+                'user_input': message,
+                'patient_id': patient_id if patient_id else 0
+            },
+            self.config
+        )
         return response
     
     def show_state(self) -> None:

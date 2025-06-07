@@ -4,15 +4,17 @@ import requests
 # Configuration
 API_URL = "http://127.0.0.1:8000"
 
-def chat_with_agent(message, history, user_id):
+def chat_with_agent(message, history, user_id) -> str:
     """Send message to the chat endpoint and return the response"""
     try:
         response = requests.post(
             f"{API_URL}/chat",
-            json={"message": message}
+            json={"message": message, "patient_id": user_id}
         )
         response.raise_for_status()
-        return response.json().get("response", "No response from server")
+        result = response.json().get("response", "No response from server")
+        print(result)
+        return result
     except Exception as e:
         return f"Error: {str(e)}"
 
@@ -52,14 +54,14 @@ def get_memory(user_id):
 def create_chat_interface():
     """Create the chat interface"""
     with gr.Blocks(title="Cancer Agent Interface") as demo:
-        # Store the current patient ID in a state variable
-        current_patient_id = gr.State(value=1)  # Default to patient ID 1
-        
+
         gr.Markdown("# Cancer Agent Interface")
         
         with gr.Tab("Chat"):
-            chatbot = gr.Chatbot(type="messages")  # Updated to use new message format
+            chatbot = gr.Chatbot(type="messages")
+            current_patient_id = gr.Number(label="Patient ID", value=1, precision=0)
             msg = gr.Textbox(label="Your Message")
+            send_btn = gr.Button("Send")
             clear = gr.Button("Clear")
             
             def respond(message, chat_history, user_id):
@@ -77,11 +79,12 @@ def create_chat_interface():
                 
                 return "", chat_history
             
-            msg.submit(
+            send_btn.click(
                 respond,
                 inputs=[msg, chatbot, current_patient_id],
                 outputs=[msg, chatbot]
             )
+
             clear.click(lambda: [], None, chatbot, queue=False)
         
         with gr.Tab("Memory Management"):
@@ -89,8 +92,8 @@ def create_chat_interface():
                 with gr.Column():
                     gr.Markdown("### Create/Update Patient Profile")
                     patient_id = gr.Number(label="Patient ID", value=1, precision=0)
-                    patient_name = gr.Textbox(label="Patient Name")
-                    patient_desc = gr.TextArea(label="Patient Description", lines=3)
+                    patient_name = gr.Textbox(label="Patient Name", value="Patient Name")
+                    patient_desc = gr.TextArea(label="Patient Description", lines=3, value="Patient Description")
                     
                     with gr.Row():
                         create_btn = gr.Button("Save Profile")

@@ -51,6 +51,7 @@ app.add_middleware(
 
 class ChatMessage(BaseModel):
     message: str
+    patient_id: Optional[int] = 0
 
 class ChatResponse(BaseModel):
     response: str
@@ -149,10 +150,21 @@ def delete_user_memory_by_user(user_id: int, db: Session = Depends(get_db)):
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(message: ChatMessage):
-    """Process chat messages and return responses"""
+    """Process chat messages and return responses
+    
+    Args:
+        message: ChatMessage containing the message and optional patient_id
+        
+    Returns:
+        ChatResponse with the AI's response
+    """
     try:
         work_flow = WorkFlow()
-        response = work_flow(message.message)
+        # Pass both message and patient_id to the workflow
+        response = work_flow(
+            message=message.message,
+            patient_id=message.patient_id if hasattr(message, 'patient_id') else 0
+        )
         
         # Get the last message from the workflow response
         messages = response.get('messages', [])
@@ -160,7 +172,7 @@ async def chat(message: ChatMessage):
             raise HTTPException(status_code=500, detail="No response generated")
             
         ai_response = messages[-1].content if hasattr(messages[-1], 'content') else str(messages[-1])
-        logger.info(f"AI response: {ai_response}")
+        logger.info(f"AI response for patient {getattr(message, 'patient_id', 0)}: {ai_response}")
         
         # Return the response in the expected format
         return ChatResponse(
