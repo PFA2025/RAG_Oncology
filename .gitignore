@@ -31,3 +31,6 @@ Thumbs.db
 .env
 
 logs/
+chroma_db_oncology/
+testing_notebook/
+tests/

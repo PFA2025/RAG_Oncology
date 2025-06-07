@@ -4,20 +4,12 @@ from src.agent_workflow.state import State
 from typing import Dict, Any, Callable, Generator, Optional, List
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
-import logging
+from src.config.logs import get_logger
 from datetime import datetime
 import uuid
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('workflow.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+# Initialize logger
+logger = get_logger(__name__)
 
 class WorkFlow:
     def __init__(self):
