@@ -6,8 +6,8 @@ from langchain_chroma import Chroma
 from langchain.schema import Document
 from dotenv import load_dotenv
 
-from .constants import bi_encoder, VECTOR_STORE_DIR, DATA_FILE, SCRIPT_DIR
-from .document_retriever import SentenceTransformerEmbeddings
+from src.helpers.constants import bi_encoder, VECTOR_STORE_DIR, DATA_FILE, SCRIPT_DIR
+from src.helpers.document_retriever import SentenceTransformerEmbeddings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
