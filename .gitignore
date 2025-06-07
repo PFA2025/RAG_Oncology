@@ -30,7 +30,7 @@ Thumbs.db
 *.xlsx
 .env
 
-logs/
-chroma_db_oncology/
-testing_notebook/
-tests/
+/logs/
+/chroma_db_oncology/
+/testing_notebook/
+/tests/
